@@ -1,14 +1,17 @@
 from oaipmh import client, common
 import os.path
 from datetime import datetime
-from urllib import urlencode
-from string import zfill
+try:
+    from urllib.parse import urlencode
+except ImportError:
+    from urllib import urlencode
+
 
 class FakeClient(client.BaseClient):
-    def __init__(self, mapping_path):
-        client.BaseClient.__init__(self)
+    def __init__(self, mapping_path, custom_retry_policy=None):
+        client.BaseClient.__init__(self, custom_retry_policy=custom_retry_policy)
         self._mapping = createMapping(mapping_path)
-        
+
     def makeRequest(self, **kw):
         # this is a complete fake, and can only deal with a number of
         # fixed requests that are mapped to files
@@ -18,12 +21,12 @@ class FakeClient(client.BaseClient):
 class TestError(Exception):
     def __init__(self, kw):
         self.kw = kw
-        
+
 class GranularityFakeClient(client.BaseClient):
     def __init__(self, granularity):
         client.BaseClient.__init__(self)
         self._granularity = granularity
-        
+
     def makeRequest(self, **kw):
         # even more fake, we'll simply raise an exception with the request
         # this can be caught by the test to see whether the request uses
@@ -39,7 +42,7 @@ class GranularityFakeClient(client.BaseClient):
 def getRequestKey(kw):
     """Create stable key for request dictionary to use in file.
     """
-    items = kw.items()
+    items = list(kw.items())
     items.sort()
     return urlencode(items)
 
@@ -64,9 +67,8 @@ class FakeCreaterClient(client.Client):
         client.Client.__init__(self, base_url, metadata_registry)
         self._mapping = {}
         self._mapping_path = mapping_path
-        
+
     def makeRequest(self, **kw):
-        print kw
         text = client.Client.makeRequest(self, **kw)
         self._mapping[getRequestKey(kw)] = text
         return text
@@ -78,7 +80,7 @@ class FakeCreaterClient(client.Client):
         for request, response in self._mapping.items():
             f.write(request)
             f.write('\n')
-            filename = zfill(str(i), 5) + '.xml'
+            filename = str(i).zfill(5) + ".xml"
             f.write(filename)
             f.write('\n')
             response_f = open(os.path.join(mapping_path, filename), 'w')
